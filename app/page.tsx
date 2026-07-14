@@ -47,12 +47,20 @@ export default function Home() {
         body: JSON.stringify({ prompt })
       })
 
-      if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || "Failed to generate design suggestions.")
+      let data;
+      const contentType = res.headers.get("content-type");
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server error: ${res.status} ${res.statusText}`);
       }
 
-      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to generate design suggestions.")
+      }
+
       setResults(data)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.")

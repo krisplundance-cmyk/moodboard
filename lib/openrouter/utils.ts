@@ -5,7 +5,7 @@ export interface OpenRouterError {
 
 export const API_KEY = process.env.OPENROUTER_API_KEY;
 export const BASE_URL = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
-export const TIMEOUT_MS = 60000;
+export const TIMEOUT_MS = 600000;
 
 export async function fetchWithTimeout(resource: string, options: RequestInit & { timeout?: number }) {
   const { timeout = TIMEOUT_MS } = options;

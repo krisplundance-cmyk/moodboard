@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateInteriorDesign } from "@/lib/openrouter";
 
+export const maxDuration = 60; // Max allowed for Vercel Hobby tier
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
