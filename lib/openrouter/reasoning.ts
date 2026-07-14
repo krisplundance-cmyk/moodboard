@@ -46,12 +46,13 @@ export async function generateDesignReasoning(userPrompt: string, visualContext?
       try {
         const parsed = JSON.parse(jsonContent) as InteriorDesignResponse;
         return { data: parsed };
-      } catch (parseError) {
+      } catch {
         const repaired = repairJSON(jsonContent);
         const parsedRepaired = JSON.parse(repaired) as InteriorDesignResponse;
         return { data: parsedRepaired };
       }
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error(`Reasoning attempt ${attempt} failed:`, err.message);
       if (attempt === retries) return { error: err.message };
       await new Promise(resolve => setTimeout(resolve, attempt * 1000));

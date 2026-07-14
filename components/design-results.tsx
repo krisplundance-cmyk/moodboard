@@ -274,7 +274,7 @@ export function DesignResults({ data }: { data: InteriorDesignResponse }) {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground italic leading-relaxed whitespace-pre-wrap">
-              "{data.designer_notes}"
+              &quot;{data.designer_notes}&quot;
             </p>
           </CardContent>
         </Card>

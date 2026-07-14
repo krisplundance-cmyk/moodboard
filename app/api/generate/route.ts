@@ -20,8 +20,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(data);
-  } catch (err: any) {
-    console.error("API Generate Error:", err);
+  } catch (e: unknown) {
+    console.error("API Generate Error:", e);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { motion } from "framer-motion"
-import { Wand2, Mic, Image as ImageIcon, Trash2, RotateCcw } from "lucide-react"
+import { Wand2, Trash2, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { DesignResults } from "@/components/design-results"
@@ -54,8 +54,8 @@ export default function Home() {
 
       const data = await res.json()
       setResults(data)
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred. Please try again.")
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred. Please try again.")
     } finally {
       clearInterval(interval)
       setLoading(false)

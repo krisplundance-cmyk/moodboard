@@ -1,6 +1,6 @@
 export interface OpenRouterError {
   error: string;
-  details?: any;
+  details?: unknown;
 }
 
 export const API_KEY = process.env.OPENROUTER_API_KEY;
@@ -32,15 +32,16 @@ export function extractJSON(text: string): string {
   return text;
 }
 
-export function repairJSON(jsonStr: string): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function repairJSON(jsonStr: string): any {
   return jsonStr.replace(/,\s*([\]}])/g, "$1");
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function makeOpenRouterRequest(model: string, messages: any[], maxTokens = 3000, temperature = 0.7) {
   if (!API_KEY) {
     throw new Error("OPENROUTER_API_KEY is not configured.");
   }
-  
   const response = await fetchWithTimeout(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {

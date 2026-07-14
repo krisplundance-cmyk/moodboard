@@ -37,14 +37,15 @@ export async function analyzeVisualContext(imageUrl: string, userPrompt: string,
       try {
         const parsed = JSON.parse(jsonContent) as VisualContext;
         return { data: parsed };
-      } catch (parseError) {
+      } catch {
         const repaired = repairJSON(jsonContent);
         const parsedRepaired = JSON.parse(repaired) as VisualContext;
         return { data: parsedRepaired };
       }
-    } catch (err: any) {
-      console.error(`Visual analysis attempt ${attempt} failed:`, err.message);
-      if (attempt === retries) return { error: err.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Visual analysis attempt ${attempt} failed:`, message);
+      if (attempt === retries) return { error: message };
       await new Promise(resolve => setTimeout(resolve, attempt * 1000));
     }
   }

@@ -30,7 +30,7 @@ export async function generateInteriorDesign({ prompt, imageUrl }: GenerateDesig
     }
 
     return { data: rData };
-  } catch (err: any) {
-    return { error: { error: "Unexpected error during AI generation orchestration.", details: err.message } };
+  } catch (error: unknown) {
+    return { error: { error: "Unexpected error during AI generation orchestration.", details: (error as Error).message } };
   }
 }
