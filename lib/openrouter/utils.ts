@@ -35,9 +35,75 @@ export function extractJSON(text: string): string {
   return text;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function repairJSON(jsonStr: string): any {
-  return jsonStr.replace(/,\s*([\]}])/g, "$1");
+// repairJSON applies fixes for the most common LLM JSON failure modes.
+// Return type is string (not any) — callers pass the result to JSON.parse().
+export function repairJSON(jsonStr: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < jsonStr.length; i++) {
+    const ch = jsonStr[i];
+
+    if (escaped) {
+      result += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      result += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      result += ch;
+      continue;
+    }
+    if (inString) {
+      if (ch === "\n") { result += "\\n"; continue; }
+      if (ch === "\r") { result += "\\r"; continue; }
+      if (ch === "\t") { result += "\\t"; continue; }
+    }
+    
+    // Safely remove trailing commas before } or ] that are outside strings
+    if (!inString && (ch === "}" || ch === "]")) {
+      let j = result.length - 1;
+      while (j >= 0 && /\s/.test(result[j])) {
+        j--;
+      }
+      if (j >= 0 && result[j] === ",") {
+        result = result.substring(0, j) + result.substring(j + 1);
+      }
+    }
+    
+    result += ch;
+  }
+
+  // If the string itself was truncated, close the quote
+  if (inString) {
+    result += '"';
+  }
+
+  let openBraces = 0;
+  let openBrackets = 0;
+  inString = false;
+  escaped = false;
+
+  for (const ch of result) {
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\" && inString) { escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") openBraces++;
+    else if (ch === "}") openBraces = Math.max(0, openBraces - 1);
+    else if (ch === "[") openBrackets++;
+    else if (ch === "]") openBrackets = Math.max(0, openBrackets - 1);
+  }
+
+  result += "]".repeat(openBrackets) + "}".repeat(openBraces);
+
+  return result;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
