@@ -22,7 +22,7 @@ export async function generateInteriorDesign({ prompt, imageUrl }: GenerateDesig
     }
 
     // Step 2: Reasoning and Generation
-    console.log("Generating design recommendations with NVIDIA Nemotron...");
+    console.log("Generating design recommendations...");
     const { data: rData, error: rError } = await generateDesignReasoning(prompt, visualContext);
     
     if (rError) {

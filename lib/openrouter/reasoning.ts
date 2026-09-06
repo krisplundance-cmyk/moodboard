@@ -1,7 +1,14 @@
 import { InteriorDesignResponse, VisualContext } from "@/types";
 import { makeOpenRouterRequest, extractJSON, repairJSON } from "./utils";
 
-const REASONING_MODEL = process.env.OPENROUTER_REASONING_MODEL || "nvidia/nemotron-3-ultra-550b-a55b:free";
+// ---------------------------------------------------------------------------
+// Model configuration
+// Change these constants to swap models without touching any other logic.
+// ---------------------------------------------------------------------------
+const PRIMARY_MODEL =
+  process.env.OPENROUTER_REASONING_MODEL || "nvidia/nemotron-3.5-lightning:free";
+const FALLBACK_MODEL =
+  process.env.OPENROUTER_REASONING_FALLBACK_MODEL || "minimax/minimax-m3:free";
 
 const REASONING_SYSTEM_PROMPT = `You are a Senior Interior Designer with over 20 years of professional experience.
 Your job is to interpret the user's design requirements (and any structured visual context provided), perform advanced interior design reasoning, and generate professional design recommendations.
@@ -29,60 +36,109 @@ The JSON must exactly match this schema:
 }
 Do not include markdown or explanations outside the JSON.`;
 
-// retries=1 means exactly 1 attempt with no retry.
-// Why: NVIDIA Nemotron on the free tier takes ~194s per attempt.
-// Two attempts would use ~388s, which exceeds Vercel Fluid Compute's 300s
-// maxDuration even on Pro. A single attempt leaves ~106s of headroom.
-// If the model returns bad JSON we repair it; if content is empty we fail fast.
-export async function generateDesignReasoning(userPrompt: string, visualContext?: VisualContext, retries = 1): Promise<{ data?: InteriorDesignResponse; error?: string }> {
+// ---------------------------------------------------------------------------
+// JSON parsing helper — shared by both model attempts
+// ---------------------------------------------------------------------------
+function parseDesignResponse(rawResponse: string): InteriorDesignResponse {
+  const jsonContent = extractJSON(rawResponse);
+
+  try {
+    return JSON.parse(jsonContent) as InteriorDesignResponse;
+  } catch (parseErr) {
+    // First parse failed — attempt structural repair for common truncation
+    // issues: trailing commas, unclosed arrays/objects from token limits.
+    console.warn(
+      `[reasoning] Initial JSON parse failed, attempting repair: ${(parseErr as Error).message}`
+    );
+    const repaired = repairJSON(jsonContent);
+    return JSON.parse(repaired) as InteriorDesignResponse;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Single model attempt — returns the parsed response or throws on any failure.
+// makeOpenRouterRequest already throws for:
+//   - non-2xx HTTP status (provider overload, rate-limit, upstream error)
+//   - empty / null content in the response body
+// So any exception here means "this model failed; try the next one."
+// ---------------------------------------------------------------------------
+async function attemptModel(
+  model: string,
+  messages: { role: string; content: unknown }[]
+): Promise<InteriorDesignResponse> {
+  const rawResponse = await makeOpenRouterRequest(model, messages, 3000, 0.7);
+
+  console.log(
+    `[reasoning] JSON parsing started (response length: ${rawResponse.length} chars)`
+  );
+
+  const result = parseDesignResponse(rawResponse);
+  console.log("[reasoning] JSON parsing succeeded");
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Main export
+// Flow: PRIMARY_MODEL → on any failure → FALLBACK_MODEL → on failure → error
+// There is intentionally no retry of the same model. If the primary fails
+// (overloaded, rate-limited, empty response, bad JSON), the fallback is tried
+// immediately without any sleep. This keeps total execution well within the
+// 300 s maxDuration limit even when the primary fails quickly (~61 s as seen
+// in recent Vercel logs).
+// ---------------------------------------------------------------------------
+export async function generateDesignReasoning(
+  userPrompt: string,
+  visualContext?: VisualContext
+): Promise<{ data?: InteriorDesignResponse; error?: string }> {
   let promptContent = `User Prompt: ${userPrompt}`;
   if (visualContext) {
-    promptContent += `\n\nVisual Analysis Context (from image reference):\n${JSON.stringify(visualContext, null, 2)}\n\nPlease combine the user prompt and visual context to generate the final design recommendations.`;
+    promptContent += `\n\nVisual Analysis Context (from image reference):\n${JSON.stringify(
+      visualContext,
+      null,
+      2
+    )}\n\nPlease combine the user prompt and visual context to generate the final design recommendations.`;
   }
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    const attemptStart = Date.now();
-    console.log(`[reasoning] NVIDIA request started (attempt ${attempt}/${retries}), model: ${REASONING_MODEL}`);
+  const messages = [
+    { role: "system", content: REASONING_SYSTEM_PROMPT },
+    { role: "user", content: promptContent },
+  ];
 
-    try {
-      const rawResponse = await makeOpenRouterRequest(REASONING_MODEL, [
-        { role: "system", content: REASONING_SYSTEM_PROMPT },
-        { role: "user", content: promptContent }
-      ], 3000, 0.7);
+  // ── Primary model ────────────────────────────────────────────────────────
+  const primaryStart = Date.now();
+  console.log(`[reasoning] Primary model started: ${PRIMARY_MODEL}`);
 
-      const elapsedMs = Date.now() - attemptStart;
-      console.log(`[reasoning] NVIDIA response received in ${elapsedMs}ms (attempt ${attempt})`);
-
-      // rawResponse is guaranteed non-empty here — makeOpenRouterRequest
-      // now throws if content is empty, so we don't need to check again.
-      console.log(`[reasoning] JSON parsing started (response length: ${rawResponse.length} chars)`);
-      const jsonContent = extractJSON(rawResponse);
-
-      try {
-        const parsed = JSON.parse(jsonContent) as InteriorDesignResponse;
-        console.log("[reasoning] JSON parsing succeeded");
-        return { data: parsed };
-      } catch (parseErr) {
-        // First parse failed — attempt structural repair for common truncation
-        // issues (trailing commas, unclosed arrays/objects from token limits).
-        console.warn(`[reasoning] Initial JSON parse failed, attempting repair: ${(parseErr as Error).message}`);
-        const repaired = repairJSON(jsonContent);
-        const parsedRepaired = JSON.parse(repaired) as InteriorDesignResponse;
-        console.log("[reasoning] JSON parsing succeeded after repair");
-        return { data: parsedRepaired };
-      }
-    } catch (error: unknown) {
-      const elapsedMs = Date.now() - attemptStart;
-      const err = error as Error;
-      console.error(`[reasoning] Attempt ${attempt} failed after ${elapsedMs}ms: ${err.message}`);
-
-      if (attempt === retries) {
-        return { error: err.message };
-      }
-      // Only sleep between retries (won't execute when retries=1).
-      await new Promise(resolve => setTimeout(resolve, attempt * 1000));
-    }
+  try {
+    const data = await attemptModel(PRIMARY_MODEL, messages);
+    const primaryMs = Date.now() - primaryStart;
+    console.log(`[reasoning] Primary model succeeded in ${primaryMs}ms`);
+    return { data };
+  } catch (primaryErr) {
+    const primaryMs = Date.now() - primaryStart;
+    const reason = (primaryErr as Error).message;
+    console.error(
+      `[reasoning] Primary model failed after ${primaryMs}ms: ${reason}`
+    );
   }
 
-  return { error: "Failed to generate design recommendations." };
+  // ── Fallback model ───────────────────────────────────────────────────────
+  console.log(`[reasoning] Falling back to: ${FALLBACK_MODEL}`);
+  const fallbackStart = Date.now();
+
+  try {
+    const data = await attemptModel(FALLBACK_MODEL, messages);
+    const fallbackMs = Date.now() - fallbackStart;
+    console.log(`[reasoning] Fallback model succeeded in ${fallbackMs}ms`);
+    return { data };
+  } catch (fallbackErr) {
+    const fallbackMs = Date.now() - fallbackStart;
+    const reason = (fallbackErr as Error).message;
+    console.error(
+      `[reasoning] Fallback model failed after ${fallbackMs}ms: ${reason}`
+    );
+    console.error("[reasoning] Primary and fallback models both failed");
+    return {
+      error: `All models failed. Primary (${PRIMARY_MODEL}): see logs. Fallback (${FALLBACK_MODEL}): ${reason}`,
+    };
+  }
 }

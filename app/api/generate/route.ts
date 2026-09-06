@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { generateInteriorDesign } from "@/lib/openrouter";
 
 // Vercel Fluid Compute: Hobby supports up to 300s, Pro/Enterprise up to 800s.
-// NVIDIA Nemotron typically takes ~194s on the free tier, so 300s gives ~100s headroom.
+// Primary model (Nemotron 3.5 Lightning) is fast; fallback (MiniMax M3) adds
+// extra time if triggered. 300s gives comfortable headroom for both paths.
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
