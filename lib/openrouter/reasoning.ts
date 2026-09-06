@@ -25,16 +25,25 @@ Generate professional interior design recommendations for the user's project.
 Never change the requested design style. Never recommend unrelated styles.
 
 STRICT OUTPUT RULES — you MUST follow all of these exactly or your response will be rejected:
-1. Return ONLY the raw JSON object. Nothing else at all.
+1. Return ONLY the raw JSON object. Nothing else at all. No Markdown, no explanation, no headings, no prose before or after the JSON.
 2. Do NOT wrap the JSON in markdown code fences (\`\`\`json or \`\`\`).
-3. Do NOT write any text, explanation, or introduction before or after the JSON.
-4. Use double quotes for ALL JSON keys and ALL string values.
-5. If a string value contains a double quote character, escape it as \\"
-6. Do NOT include literal newline characters inside any string value. Use the two-character sequence \\n if you need to represent a line break within a string.
-7. Do NOT include trailing commas after the last item in any object or array.
-8. Do NOT truncate your response. Every field must be fully completed.
-9. Every opening brace { must have a matching closing brace }.
-10. Every opening bracket [ must have a matching closing bracket ].
+3. Use double quotes (") for ALL JSON keys and ALL string values. Do not use single quotes ('). Do not output Python dictionaries or JavaScript object syntax.
+4. If a string value contains a double quote character, escape it as \\"
+5. Do NOT include literal newline characters inside any string value. Use the two-character sequence \\n.
+6. Do NOT include trailing commas. No comments. No undefined/null values unless explicitly allowed.
+7. Every opening brace { must have a matching closing brace }.
+8. Every opening bracket [ must have a matching closing bracket ].
+9. The following fields MUST be JSON arrays. Do NOT output strings. See examples:
+   - "colour_palette": [{"name": "string", "hex": "#RRGGBB", "usage": "string"}]
+   - "mood_board.keywords": ["Modern", "Minimalist"]
+   - "mood_board.recommended_materials": ["Walnut wood", "Linen"]
+   - "mood_board.recommended_textures": ["Smooth", "Matte"]
+   - "mood_board.recommended_finishes": ["Brushed nickel", "Satin"]
+   - "materials": ["Walnut wood", "Linen"]
+   - "lighting": ["Recessed LED lights", "Warm bedside lamps"]
+   - "furniture": ["Minimalist platform bed", "L-shaped sofa"]
+   - "decor": ["Abstract wall art", "Ceramic vases"]
+   - "space_planning": ["Maintain clear circulation around the seating area", "Position the sofa facing the focal wall"]
 
 Return exactly this JSON schema — no additional fields, no omitted fields:
 {
@@ -44,16 +53,16 @@ Return exactly this JSON schema — no additional fields, no omitted fields:
   "mood_board": {
     "style": "string",
     "mood": "string",
-    "keywords": ["string"],
-    "recommended_materials": ["string"],
-    "recommended_textures": ["string"],
-    "recommended_finishes": ["string"]
+    "keywords": ["string", "string"],
+    "recommended_materials": ["string", "string"],
+    "recommended_textures": ["string", "string"],
+    "recommended_finishes": ["string", "string"]
   },
-  "materials": ["string"],
-  "lighting": ["string"],
-  "furniture": ["string"],
-  "decor": ["string"],
-  "space_planning": ["string"],
+  "materials": ["string", "string"],
+  "lighting": ["string", "string"],
+  "furniture": ["string", "string"],
+  "decor": ["string", "string"],
+  "space_planning": ["string", "string"],
   "designer_notes": "string"
 }`;
 
