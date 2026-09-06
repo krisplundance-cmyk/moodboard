@@ -86,9 +86,37 @@ function validateDesignResponse(data: any): InteriorDesignResponse {
     }
   }
 
-  if (!Array.isArray(data.colour_palette)) throw new Error("colour_palette must be an array");
-  if (!data.mood_board || typeof data.mood_board !== "object") throw new Error("mood_board must be an object");
-  if (!Array.isArray(data.materials)) throw new Error("materials must be an array");
+  // 1. Validate top-level array fields
+  const topLevelArrays = [
+    "colour_palette",
+    "materials",
+    "lighting",
+    "furniture",
+    "decor",
+    "space_planning"
+  ];
+  for (const field of topLevelArrays) {
+    if (!Array.isArray(data[field])) {
+      throw new Error(`Field '${field}' must be an array`);
+    }
+  }
+
+  // 2. Validate mood_board object and its array fields
+  if (!data.mood_board || typeof data.mood_board !== "object" || Array.isArray(data.mood_board)) {
+    throw new Error("Field 'mood_board' must be an object");
+  }
+
+  const moodBoardArrays = [
+    "keywords",
+    "recommended_materials",
+    "recommended_textures",
+    "recommended_finishes"
+  ];
+  for (const field of moodBoardArrays) {
+    if (!Array.isArray(data.mood_board[field])) {
+      throw new Error(`Field 'mood_board.${field}' must be an array`);
+    }
+  }
   
   return data as InteriorDesignResponse;
 }
