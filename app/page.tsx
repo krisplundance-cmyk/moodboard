@@ -53,7 +53,6 @@ export default function Home() {
       if (contentType && contentType.includes("application/json")) {
         data = await res.json();
       } else {
-        const text = await res.text();
         throw new Error(`Server error: ${res.status} ${res.statusText}`);
       }
 

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { generateInteriorDesign } from "@/lib/openrouter";
 
-export const maxDuration = 60; // Max allowed for Vercel Hobby tier
+// Vercel Fluid Compute: Hobby supports up to 300s, Pro/Enterprise up to 800s.
+// NVIDIA Nemotron typically takes ~194s on the free tier, so 300s gives ~100s headroom.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
+  const requestStart = Date.now();
+  console.log("[generate] Request received");
+
   try {
     const body = await request.json();
     const { prompt, imageUrl } = body;
@@ -15,15 +20,21 @@ export async function POST(request: Request) {
       );
     }
 
+    console.log("[generate] Starting AI generation pipeline");
     const { data, error } = await generateInteriorDesign({ prompt, imageUrl });
+    const totalMs = Date.now() - requestStart;
 
     if (error) {
+      console.error(`[generate] Pipeline failed after ${totalMs}ms:`, error.error, error.details ?? "");
       return NextResponse.json({ error: error.error }, { status: 500 });
     }
 
+    console.log(`[generate] Pipeline completed successfully in ${totalMs}ms`);
     return NextResponse.json(data);
   } catch (e: unknown) {
-    console.error("API Generate Error:", e);
+    const totalMs = Date.now() - requestStart;
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[generate] Unhandled error after ${totalMs}ms:`, message);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
